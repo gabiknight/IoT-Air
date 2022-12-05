@@ -1,58 +1,64 @@
-#include <header.h>
+#include "common.h"
+#include "mqtt.hpp"
+#include <PubSubClient.h>
+#include <ESP8266HTTPClient.h>
 
 // MQTT Broker
-const char *mqtt_broker = "168.194.207.67";
-const char *topic = "gc/sensor3";
-const char *mqtt_username = "emqx";
-const char *mqtt_password = "public";
-const int mqtt_port = 1883;
-extern WiFiClient espClient;
-PubSubClient client(espClient);
-extern String ID, urlReport;
-int delayms = 5000; // Tiempo entre consultas del estado
+extern parametros_t parametros;
+
+char topic_command[] = "sensor/command/";
+char topic_status[] = "sensor/status/0000";
+WiFiClient wifi_client;
+PubSubClient mqtt_client(wifi_client);
+char topic[30];
+char aux[50];
+// int delayms = 5000; // Tiempo entre consultas del estado
 
 void mqtt_loop()
 {
-    client.loop();
+    mqtt_client.loop();
 }
 
 void set_MQTT_parameters()
 {
-    client.setKeepAlive(1.5 * delayms);     // KeepAlive de conexion MQTT en segundos
-    client.setSocketTimeout(1.5 * delayms); // TimeOut de conexion MQTT en segundos
-    client.setServer(mqtt_broker, mqtt_port);
-    client.setCallback(callback);
+    // client.setKeepAlive(1.5 * delayms);     // KeepAlive de conexion MQTT en segundos
+    // client.setSocketTimeout(1.5 * delayms); // TimeOut de conexion MQTT en segundos
+    mqtt_client.setServer(parametros.mqtt_server, atoi(parametros.mqtt_port));
+    mqtt_client.setCallback(callback);
+}
+
+bool mqtt_connected()
+{
+    return mqtt_client.connected();
 }
 
 void mqtt_reconnect()
 {
     // Loop until we're reconnected
-    while (!client.connected())
+    if (!mqtt_client.connected())
     {
+        strcpy(topic_status, "sensor/status/");
+        strcat(topic_status, parametros.id);
+
         PRINTF("Attempting MQTT connection...");
         // Attempt to connect
-        if (client.connect("sensor_3")) // ID del cliente
+        if (mqtt_client.connect(parametros.id, parametros.mqtt_user, parametros.mqtt_pass)) // ID del cliente
         {
             PRINTF("connected\n");
 
-            client.subscribe(topic);
+            strcpy(topic, topic_command);
+            strcat(topic, parametros.id);
+
+            mqtt_client.subscribe(topic);
+
+            PRINTF("[%s] Connected to topic %s\n", parametros.id, topic);
         }
         else
         {
-            PRINTF("failed, rc= %i try again in 5 seconds", client.state());
-            // Wait 5 seconds before retrying
+            PRINTF("[%s] failed, rc=%d \n", parametros.id, mqtt_client.state());
             delay(5000);
         }
     }
-}
-
-void configRegistration()
-{ // Suscripción al topic del puesto
-    // envieMensajeConfig = false;               //Si no nos hemos suscripto entonces suponemos que no nos hemos registrado
-    String topicPuesto = "SAC/"; // Arma el topic al que se va a suscribir (bikelocker/"MAC")
-    PRINTF("Me voy a suscribir a: %s", topicPuesto.c_str());
-
-    client.subscribe(topicPuesto.c_str()); // Se suscribe al topic
 }
 
 void callback(char *topic, byte *payload, unsigned int length)
@@ -82,27 +88,35 @@ void interpreter(byte *payload)
 
     if (!doc["id"].isNull())
     {
-        const String newID = doc["id"];
-        if (ID != newID)
+        const char *id = doc["id"];
+        if (strcmp(id, parametros.id) != 0)
         {
-            Serial.printf("#%s a #%s\r\n", ID.c_str(), newID.c_str());
-            ID = newID;
-            writeFile(LittleFS, idPath, ID.c_str());
-            WiFi.softAP("SAC " + ID);
-            mqtt_print(("New ID: " + ID).c_str());
+            Serial.printf("#%s a #%s\r\n", parametros.id, id);
+            strcpy(parametros.id, id);
+            save_id(parametros.id);
+            mqtt_disconnect();
+            mqtt_reconnect();
         }
     }
-    
 
-    if (!doc["URLReport"].isNull())
+    // if (!doc["tipo"].isNull())
+    // {
+    //     const char *tipo = doc["tipo"];
+
+    //     Serial.printf("#%s %s\r\n", parametros.id, tipo);
+    //     // mqtt_print(("New type: " + newType).c_str());
+    // }
+
+    if (!doc["web"].isNull())
     {
-        const String newURLReport = doc["URLReport"];
-        if (urlReport != newURLReport)
+        const String newWeb = doc["web"];
+        if (newWeb == "on")
         {
-            urlReport = newURLReport;
-            Serial.printf("#%s URLREP %s\r\n", ID.c_str(), urlReport.c_str());
-            writeFile(LittleFS, urlReportPath, urlReport.c_str());
-            mqtt_print("Nueva URLReport recibida");
+            startWifiManagerWeb();
+        }
+        else if (newWeb == "off")
+        {
+            stopWifiManagerWeb();
         }
     }
 
@@ -112,33 +126,59 @@ void interpreter(byte *payload)
 
         const String URL_OTA = doc["OTA"];
 
-        client.unsubscribe(topic);
-
-        int indx1 = URL_OTA.indexOf("://");
-        int indx2 = URL_OTA.indexOf(":", indx1 + 1);
         t_httpUpdate_return ret;
 
-        const String server_host = URL_OTA.substring(indx1 + 3, indx2);
+        // mqtt_print(("[" + ID + "] Descargando firmware de " + server_host + ":" + port + server_uri).c_str());
+        mqtt_print(("{\"ID\":\"" + String(parametros.id) + "\",\"OTA\":\"" + URL_OTA + "\"}").c_str());
 
-        int indx3 = URL_OTA.indexOf("/", indx2);
-        int port = URL_OTA.substring(indx2 + 1, indx3).toInt();
+        ret = ESPhttpUpdate.update(wifi_client, URL_OTA);
 
-        const String server_uri = URL_OTA.substring(indx3);
-
-        client.publish(topic, ("Descargando firmware de " + server_host + ":" + port + server_uri).c_str());
-
-        ret = ESPhttpUpdate.update(espClient, server_host, port, server_uri);
+        mqtt_reconnect();
 
         switch (ret)
         {
         case HTTP_UPDATE_FAILED:
-            PRINTF("[update] Update failed.");
+            PRINTF("[update] Update failed.\r");
+            mqtt_print(("{\"ID\":\"" + String(parametros.id) + "\",\"OTA\":\"failed\"}").c_str());
             break;
         case HTTP_UPDATE_NO_UPDATES:
-            PRINTF("[update] Update no Update.");
+            PRINTF("[update] Update no Update.\r");
             break;
         case HTTP_UPDATE_OK:
-            PRINTF("[update] Update ok."); // may not called we reboot the ESP
+            PRINTF("[update] Update ok.\r"); // may not called we reboot the ESP
+            mqtt_print(("{\"ID\":\"" + String(parametros.id) + "\",\"OTA\":\"ok\"}").c_str());
+            delay(1000);
+            ESP.restart();
+            break;
+        }
+    }
+    if (!doc["OTAF"].isNull())
+    {
+
+        const String URL_OTA = doc["OTAF"];
+
+        // mqtt_print(("[" + ID + "] Descargando firmware de " + server_host + ":" + port + server_uri).c_str());
+        mqtt_print(("{\"ID\":\"" + String(parametros.id) + "\",\"OTAF\":\"" + URL_OTA + "\"}").c_str());
+
+        t_httpUpdate_return ret;
+
+        ret = ESPhttpUpdate.updateFS(wifi_client, URL_OTA);
+
+        mqtt_reconnect();
+
+        switch (ret)
+        {
+        case HTTP_UPDATE_FAILED:
+            PRINTF("[update] Update failed.\r");
+            mqtt_print(("{\"ID\":\"" + String(parametros.id) + "\",\"OTAF\":\"failed\"}").c_str());
+            break;
+        case HTTP_UPDATE_NO_UPDATES:
+            PRINTF("[update] Update no Update.\r");
+            break;
+        case HTTP_UPDATE_OK:
+            PRINTF("[update] Update ok.\r"); // may not called we reboot the ESP
+            mqtt_print(("{\"ID\":\"" + String(parametros.id) + "\",\"OTAF\":\"ok\"}").c_str());
+            delay(1000);
             ESP.restart();
             break;
         }
@@ -147,7 +187,11 @@ void interpreter(byte *payload)
 
 void mqtt_print(const char *payload)
 {
-    client.unsubscribe(topic);
-    client.publish(topic, payload);
-    client.subscribe(topic);
+    PRINTF("Publicando en %s\r\n", topic_status);
+    mqtt_client.publish(topic_status, payload);
+}
+
+void mqtt_disconnect()
+{
+    mqtt_client.disconnect();
 }

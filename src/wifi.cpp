@@ -1,50 +1,59 @@
-#include <header.h>
+// #include <header.h>
+#include "wifi.hpp"
 
-extern String ssid, pass;
 wifiScanList_t *wifiRoot = NULL;
 wifiScanList_t *wifiTail = NULL;
+extern parametros_t parametros;
 
-/**
- * @brief Initialize WiFi
- *
- * @return true
- * @return false
- */
-bool initWiFi()
+void initWiFi()
 {
-  if (ssid == "" || pass == "")
+  if (parametros.ssid[0] == '\0')
   {
-    PRINTF("Undefined SSID or IP address.");
-    return false;
+    PRINTF("No hay SSID guardada, iniciando WifiManager\n");
+    startWifiManagerWeb();
+    return;
   }
 
-  WiFi.mode(WIFI_STA);
+  if (WiFi.getMode() != WIFI_AP_STA)
+  {
+    WiFi.mode(WIFI_STA);
+  }
 
-  WiFi.begin(ssid.c_str(), pass.c_str());
+  WiFi.begin(parametros.ssid, parametros.pass);
 
+  PRINTF("Connecting to WiFi");
   for (int i = 0; i < 10 && WiFi.status() != WL_CONNECTED; i++)
   {
-    PRINTF("Connecting to WiFi...");
+    PRINTF("...");
     delay(1000);
   }
 
   if (WiFi.status() != WL_CONNECTED)
   {
-    PRINTF("Failed to connect.");
-    return false;
+    PRINTF("Failed to connect.\r");
+    startWifiManagerWeb();
+    return;
   }
 
-  PRINTF("Local IP: %s\n", WiFi.localIP().toString().c_str());
-  return true;
+  PRINTF("Local IP: %s\r\n", WiFi.localIP().toString().c_str());
 }
 
 void startWifiManagerWeb()
 {
-  // Connect to Wi-Fi network with SSID and password
+  char SSID[32];
+
   PRINTF("Setting AP (Access Point)");
-  // NULL sets an open Access Point
+
+  if (WiFi.getMode() == WIFI_AP_STA)
+  {
+    return;
+  }
+
   WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP("gc_sensor3", NULL);
+
+  strcpy(SSID, "Sensor-");
+  strcat(SSID, parametros.id);
+  WiFi.softAP(SSID);
 
   IPAddress IP = WiFi.softAPIP();
   PRINTF("AP IP address: %s", IP.toString().c_str());
@@ -54,77 +63,117 @@ void startWifiManagerWeb()
   web_wifimanager();
 }
 
-// se ingresa la SSID de una red wifi y la guarda en una fila de estructuras que va desde wifiRoot hasta wifiTail
-void save_ssid_in_list(String name)
+void stopWifiManagerWeb()
 {
-  wifiScanList_t *nodo;                                    // puntero a una estructura
-  nodo = (wifiScanList_t *)malloc(sizeof(wifiScanList_t)); // reserva espacio en memoria para estructura
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_STA);
+  stopServer();
+}
+
+void save_ssid_in_list(char *name)
+{
+  wifiScanList_t *nodo;
+  nodo = (wifiScanList_t *)malloc(sizeof(wifiScanList_t));
   if (nodo)
-  {                                                  // verificar que hay memoria disponible
-    name.toCharArray(nodo->name, name.length() + 1); // guarda la SSID en la variable name del arreglo
-    nodo->next = NULL;                               // el puntero apunta a NULL
+  {
+    strcpy(nodo->ssid, name);
+    nodo->next = NULL;
     if (wifiRoot == NULL)
-    { // la primera vez hace que root y tail apunten a nodo
+    {
       wifiRoot = nodo;
       wifiTail = nodo;
     }
     else
     {
-      wifiTail->next = nodo; // modifica next del nodo anterior, ya que tail estaba apuntando al nodo anterior
-      wifiTail = nodo;       // tail ahora apunta al nodo actual
+      wifiTail->next = nodo;
+      wifiTail = nodo;
     }
   }
 }
 
-// recorre la fila de estructuras y extrae los SSID para imprimirlos por pantalla
-String read_ssid_from_list(const String &var)
+String web_callback(String var)
 {
+  extern parametros_t parametros;
+  char html[1024];
+
+  // wifi_scan();
+
   if (var == "LIST")
   {
-    String html = "";
-    wifiScanList_t *nodo = wifiRoot; // la fila comienza en wifiRoot
+    strcpy(html, "<option value='");
+    strcat(html, parametros.ssid);
+    strcat(html, "'>");
+    strcat(html, parametros.ssid);
+    strcat(html, "</option>");
+
+    wifiScanList_t *nodo = wifiRoot;
     while (nodo != NULL)
     {
-      html += "<option value='" + (String)nodo->name + "'>" + (String)nodo->name + "</option>";
-      nodo = nodo->next; // cuando llegue a wifitail next apuntará a null, y saldrá del bucle
+      strcat(html, "<option value='");
+      strcat(html, nodo->ssid);
+      strcat(html, "'>");
+      strcat(html, nodo->ssid);
+      strcat(html, "</option>");
+      nodo = nodo->next;
     }
     delete_ssid_list();
-    return html;
+    return String(html);
+  }
+  if (var == "PASS")
+  {
+    return String(parametros.pass);
+  }
+  if (var == "ID")
+  {
+    return String(parametros.id);
+  }
+  if (var == "MQTT_IP")
+  {
+    return String(parametros.mqtt_server);
+  }
+  if (var == "MQTT_PORT")
+  {
+    return String(parametros.mqtt_port);
+  }
+  if (var == "MQTT_USR")
+  {
+    return String(parametros.mqtt_user);
+  }
+  if (var == "MQTT_PASS")
+  {
+    return String(parametros.mqtt_pass);
   }
   return String();
 }
 
 void delete_ssid_list()
 {
-  String html = "";
-  wifiScanList_t *nodo = wifiRoot; // la fila comienza en wifiRoot
+  wifiScanList_t *nodo = wifiRoot;
   wifiScanList_t *aux;
 
   while (nodo != NULL)
   {
     aux = nodo->next;
     free(nodo);
-    nodo = aux; // cuando llegue a wifitail next apuntará a null, y saldrá del bucle
+    nodo = aux;
   }
 }
 
 void wifi_scan()
 {
-
-  // WiFi.scanNetworks devuelve el número de redes wifi encontradas
-  int n = WiFi.scanNetworks();
-  if (n <= 0)
+  char ssid[32];
+  int networks_qty = WiFi.scanNetworks();
+  if (networks_qty <= 0)
   {
-    PRINTF("no networks found, detected %i\n", n);
+    PRINTF("no networks found, detected %i\n", networks_qty);
   }
   else
   {
-    PRINTF("detected %i\n", n);
-    for (int i = 0; i < n; ++i)
+    PRINTF("detected %i\n", networks_qty);
+    for (int i = 0; i < networks_qty; ++i)
     {
-      // WiFi.SSID(i) devuelve la SSID de la red encontrada número i
-      save_ssid_in_list((String)WiFi.SSID(i)); // guarda las SSID en la estructura wifiScanList_t
-      delay(10);
+      strcpy(ssid, WiFi.SSID(i).c_str());
+      save_ssid_in_list(ssid);
     }
   }
 }

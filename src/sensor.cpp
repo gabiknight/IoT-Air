@@ -1,13 +1,21 @@
-#include <header.h>
+//#include <header.h>
+#include "sensor.hpp"
 
 ambi_t mAmbi;
+#ifdef PLANTPHENOL
+extern SoftwareSerial Serial_apm;
+#endif
 
 #ifdef HONEYWELL
-extern HPMA115S0 my_hpm;
+extern SoftwareSerial Serial_hpm;
+#endif
+
+#ifdef HONEYWELL
+HPMA115S0 my_hpm(Serial_hpm);
 #endif
 
 #ifdef PLANTPHENOL
-extern SerialPM pms;
+SerialPM pms(PMS7003, Serial_apm);
 #endif
 
 #ifdef SHT_SENSOR
@@ -43,7 +51,6 @@ void sensor_main(){
 void sensor_print()
 {
     Serial.println("(SENSOR)");
-    Serial.println("Date:   \t\t" + date);
     Serial.println("T_am:      \t\t" + (String)mAmbi.temperatura_am);
     Serial.println("T_sht:      \t\t" + (String)mAmbi.temperatura_sht);
     Serial.println("H_am:      \t\t" + (String)mAmbi.humedad_am);
@@ -106,7 +113,6 @@ void gas_sensor_init()
 
 void gas_sensor_read()
 {
-    date = get_date_ntp();
 
 #ifdef MULTICHANNEL
     mAmbi.co_ppm = (unsigned int)gas.measure_CO();

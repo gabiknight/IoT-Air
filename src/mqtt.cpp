@@ -2,7 +2,7 @@
 
 // MQTT Broker
 const char *mqtt_broker = "168.194.207.67";
-const char *topic = "gc/sensor2";
+const char *topic = "gc/sensor3";
 const char *mqtt_username = "emqx";
 const char *mqtt_password = "public";
 const int mqtt_port = 1883;
@@ -31,7 +31,7 @@ void mqtt_reconnect()
     {
         PRINTF("Attempting MQTT connection...");
         // Attempt to connect
-        if (client.connect("sensor_2")) // ID del cliente
+        if (client.connect("sensor_3")) // ID del cliente
         {
             PRINTF("connected\n");
 

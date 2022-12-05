@@ -1,5 +1,6 @@
 
 #include <header.h>
+//!EN LIBRERIA DE MULTICHANNEL CAMBIAR POR Wire.begin(D4, D3);
 
 WiFiClient espClient;
 
@@ -46,6 +47,7 @@ SerialPM pms(PMS7003, Serial_apm);
 void setup()
 {
   pinMode(D8, OUTPUT);
+  
   // digitalWrite(D8, HIGH);
   //  Serial port for debugging purposes
   Serial.begin(9600);

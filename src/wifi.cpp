@@ -44,7 +44,7 @@ void startWifiManagerWeb()
   PRINTF("Setting AP (Access Point)");
   // NULL sets an open Access Point
   WiFi.mode(WIFI_AP_STA);
-  WiFi.softAP("gc_sensor2", NULL);
+  WiFi.softAP("gc_sensor3", NULL);
 
   IPAddress IP = WiFi.softAPIP();
   PRINTF("AP IP address: %s", IP.toString().c_str());

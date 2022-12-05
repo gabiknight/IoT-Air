@@ -64,6 +64,10 @@ void sensor_print()
 
 void gas_sensor_init()
 {
+#ifdef MULTICHANNEL
+    gas.begin(0x04);
+    gas.powerOn();
+#endif
 #ifdef AMBIMATE
     Wire.begin(D4, D3);
     // Data and basic information are acquired from the module
@@ -98,15 +102,17 @@ void gas_sensor_init()
 
     Serial.printf("Sensor iniciado. Version firmware %i.%i. Opcional %i.\n", fw_ver, fw_sub_ver, opt_sensors);
 #endif
-
-#ifdef MULTICHANNEL
-    gas.begin(0x04);
-    gas.powerOn();
-#endif
 }
 
 void gas_sensor_read()
 {
+    date = get_date_ntp();
+
+#ifdef MULTICHANNEL
+    mAmbi.co_ppm = (unsigned int)gas.measure_CO();
+    mAmbi.no2_ppm = gas.measure_NO2();
+    mAmbi.nh3_ppm = gas.measure_NH3();
+#endif
 #ifdef AMBIMATE
     unsigned char dato[30];
     unsigned int i = 0;
@@ -154,14 +160,6 @@ void gas_sensor_read()
         return;
     }
 
-#endif
-
-    date = get_date_ntp();
-
-#ifdef MULTICHANNEL
-    mAmbi.co_ppm = (unsigned int)gas.measure_CO();
-    mAmbi.no2_ppm = gas.measure_NO2();
-    mAmbi.nh3_ppm = gas.measure_NH3();
 #endif
 }
 

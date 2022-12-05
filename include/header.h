@@ -6,9 +6,9 @@
 #define DEBUG_SENSOR 1
 #define MEASURING_PERIOD_MS 10000
 #define HONEYWELL
-//#define AMBIMATE
+#define AMBIMATE
 #define MULTICHANNEL
-#define SHT_SENSOR
+//#define SHT_SENSOR
 //#define PLANTPHENOL
 
 #include <Arduino.h>

@@ -51,7 +51,7 @@ void startWifiManagerWeb()
 
   WiFi.mode(WIFI_AP_STA);
 
-  strcpy(SSID, "Sensor-");
+  strcpy(SSID, "IoT-Air_");
   strcat(SSID, parametros.id);
   WiFi.softAP(SSID);
 

@@ -14,9 +14,6 @@ extern parametros_t parametros;
 #define PARAM_INPUT_3 "id"
 #define PARAM_INPUT_4 "mqtt_ip"
 #define PARAM_INPUT_5 "mqtt_port"
-#define PARAM_INPUT_6 "urlrep"
-#define PARAM_INPUT_7 "rweb"
-#define PARAM_INPUT_8 "tipo"
 #define PARAM_INPUT_9 "mqtt_usr"
 #define PARAM_INPUT_10 "mqtt_pass"
 
@@ -96,48 +93,7 @@ void web_wifimanager()
             PRINTF("MQTT pass set to: %s\n", parametros.mqtt_port);
             // Write file to save value
             save_mqtt_pass(parametros.mqtt_pass);
-          }
-          if (p->name() == PARAM_INPUT_6) {
-            strcpy(parametros.urlrep, p->value().c_str());
-            PRINTF("URLRep set to: %s\n", parametros.urlrep);
-            // Write file to save value
-            //Serial.printf("#%s URLREP %s\r\n", parametros.id, parametros.urlrep);
-            parametros.sms_config = true;
-            
-          }
-          if (p->name() == PARAM_INPUT_7) {
-            if(p->value() == "on")
-            {
-              parametros.rweb = true;
-              PRINTF("RWEB activado.\r\n");
-              //Serial.printf("#%s RWEB ON\r\n", parametros.id);
-              parametros.sms_config = true;
-            }
-            else
-            {
-              parametros.rweb = false;
-              PRINTF("RWEB desactivado.\r\n");
-              //Serial.printf("#%s RWEB OFF\r\n", parametros.id);
-              parametros.sms_config = true;
-            }
-          }
-          if (p->name() == PARAM_INPUT_8) {
-            if(p->value() == "com")
-            {
-              parametros.comunitaria = true;
-              PRINTF("Tipo comunitaria.\r\n");
-              //Serial.printf("#%s RWEB ON\r\n", parametros.id);
-              parametros.sms_config = true;
-            }
-            else
-            {
-              parametros.comunitaria = false;
-              PRINTF("Tipo sensores.\r\n");
-              //Serial.printf("#%s RWEB OFF\r\n", parametros.id);
-              parametros.sms_config = true;
-            }
-          }
-          
+          }  
          
         }
       }     
